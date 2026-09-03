@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cocoa-m3.codex-discord-bot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/cocoa-m3/.nvm/versions/node/v22.22.1/bin/node</string>
+        <string>/Users/cocoa-m3/codex-discord-bot/bot.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/cocoa-m3/codex-discord-bot</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/cocoa-m3/.nvm/versions/node/v22.22.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/cocoa-m3</string>
+    </dict>
+
+    <!-- ログイン時に自動起動する -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 落ちても自動で立ち上げ直す（常駐を維持） -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- 連続クラッシュ時に暴走しないよう最低10秒あける -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- 標準出力・エラーとも同じログファイルにまとめる -->
+    <key>StandardOutPath</key>
+    <string>/Users/cocoa-m3/codex-discord-bot/bot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/cocoa-m3/codex-discord-bot/bot.log</string>
+</dict>
+</plist>

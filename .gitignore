@@ -1,0 +1,5 @@
+.env
+paired.json
+conversation.json
+node_modules/
+*.log

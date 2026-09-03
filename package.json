@@ -1,0 +1,15 @@
+{
+  "name": "codex-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord ⇄ codex CLI の中継ボット（スマホから codex を呼べるAI秘書）",
+  "main": "bot.js",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2"
+  }
+}
