@@ -43,13 +43,10 @@ import {
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const ALLOWED_USER_ID = process.env.ALLOWED_USER_ID;
-// codex を動かす作業ディレクトリ（このPCの「あなた」の文脈。トレード研究リポジトリ）
+// codex を動かす作業ディレクトリ。Macごとの差は .env で指定する。
 const CODEX_CWD = process.env.CODEX_CWD || process.cwd();
-// codex 実行体。このPCでは npm グローバル(@openai/codex)の実体をフルパスで指定する。
-// ※お手本のPC(cocoa-m3)は ChatGPT.app 同梱版だったため、パスが異なる。
-const CODEX_BIN =
-  process.env.CODEX_BIN ||
-  "/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/codex";
+// codex 実行体。通常は .env の絶対パスを使い、未指定時だけ PATH から探す。
+const CODEX_BIN = process.env.CODEX_BIN || "codex";
 const CODEX_TIMEOUT_MS = Number(process.env.CODEX_TIMEOUT_MS || 3600000);
 const IMAGE_SETTINGS = loadImageSettings(process.env);
 const SESSION_POLICY = loadSessionPolicy(process.env);

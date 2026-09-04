@@ -5,3 +5,5 @@ conversation.json
 conversation.json.tmp
 handoffs/
 *.log
+# 各Mac用に生成する実ファイル。共有する雛形は *.plist.template。
+*.plist

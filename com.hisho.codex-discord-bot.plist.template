@@ -7,19 +7,19 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/node</string>
-        <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.js</string>
+        <string>__NODE_BIN__</string>
+        <string>__BOT_DIR__/bot.js</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot</string>
+    <string>__BOT_DIR__</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Users/nisijimk/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>__PATH__</string>
         <key>HOME</key>
-        <string>/Users/nisijimk</string>
+        <string>__HOME__</string>
     </dict>
 
     <!-- ログイン時に自動起動する -->
@@ -36,8 +36,8 @@
 
     <!-- 標準出力・エラーとも同じログファイルにまとめる -->
     <key>StandardOutPath</key>
-    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.log</string>
+    <string>__BOT_DIR__/bot.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.log</string>
+    <string>__BOT_DIR__/bot.log</string>
 </dict>
 </plist>

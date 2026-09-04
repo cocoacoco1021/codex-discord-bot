@@ -12,7 +12,7 @@
 ```
 スマホDiscord → Discord(クラウド) → このMacの bot.js → codex exec → 応答 → Discordへ返信
 ```
-- 実行体は **npm グローバル版 codex**（`/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/codex`。このPCに ChatGPT.app は無い）
+- codexの実行体と作業場所は、各Macの `.env` にある `CODEX_BIN` と `CODEX_CWD` で指定
 - 1手目: `codex -C <CWD> exec --json --dangerously-bypass-approvals-and-sandbox -o <tmp> "<歯止め>+<本文>"`
 - 2手目以降: `codex -C <CWD> exec resume <thread_id> …`（`thread.started` イベントから拾ったIDで文脈継続）
 - 会話IDは `conversation.json` に保存し、BotやMacの再起動後も同じ会話を継続
@@ -41,11 +41,11 @@
 | `.env` | 秘密設定（トークン等）。gitignore済み。雛形は `.env.example` |
 | `paired.json` | 持ち主のDiscordユーザーID記憶（初回メッセージで自動登録） |
 | `conversation.json` | Codex会話IDの記憶（自動生成・gitignore済み） |
-| `com.hisho.codex-discord-bot.plist` | launchd用（ログイン時自動起動・クラッシュ復活） |
+| `com.hisho.codex-discord-bot.plist.template` | launchd用の汎用テンプレート。Mac固有パスは含めない |
 | `bot.log` | 標準出力/エラーのログ |
 
 ## セットアップ
-1. `.env.example` を `.env` にコピーし、`DISCORD_TOKEN` に **codex用Discordアプリ**（アプリID `1541825962851835934`）のBotトークンを貼る
+1. `.env.example` を `.env` にコピーし、`DISCORD_TOKEN` に **codex用Discordアプリ**のBotトークンを貼る。`CODEX_CWD` と `CODEX_BIN` は、そのMacの絶対パスへ置き換える
    - Discord Developer Portal の該当アプリ → **Bot** → **MESSAGE CONTENT INTENT を ON**（必須）
    - `chmod 600 .env`
 2. 依存導入（導入済みなら不要）: `npm install`
@@ -84,16 +84,22 @@ npm test
 ```
 
 ## 常駐化（自動起動）
-```bash
-cp com.hisho.codex-discord-bot.plist ~/Library/LaunchAgents/
-launchctl load -w ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist
-```
+
+`com.hisho.codex-discord-bot.plist.template` の次の印を各Macの値へ置き換え、
+`~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist` として保存します。
+
+- `__NODE_BIN__`: `node` 実行体の絶対パス
+- `__BOT_DIR__`: このリポジトリの絶対パス
+- `__PATH__`: Botへ渡す実行検索パス
+- `__HOME__`: そのMacのホームディレクトリ
+
+生成後の `.plist` はMac固有ファイルのためGitへ含めません。
 
 ## 運用コマンド
 | やること | コマンド |
 |---|---|
 | 稼働確認 | `launchctl list \| grep codex-discord-bot` |
-| ログ監視 | `tail -f ~/codex-discord-bot/bot.log` |
+| ログ監視 | `tail -f <BOT_DIR>/bot.log` |
 | 停止 | `launchctl unload ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist` |
 | 起動 | `launchctl load -w ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist` |
 | コード反映 | 上の unload→load |
@@ -101,4 +107,4 @@ launchctl load -w ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist
 ## 注意
 - claude版とは **別のDiscordアプリ/トークン**を使う（同一トークンで2プロセスは同時ログイン不可のため）
 - フルモード（`--dangerously-bypass-approvals-and-sandbox`）で動くため、防御線は `ALLOWED_USER_ID` のみ。トークンは絶対に共有しない
-- このMacが起動＆ログイン中のときだけ応答する（スリープ/シャットダウン中は不可）
+- Botを常駐させたMacが起動＆ログイン中のときだけ応答する（スリープ/シャットダウン中は不可）

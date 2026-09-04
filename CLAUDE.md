@@ -9,6 +9,6 @@
 - 自動更新を始めるときは、先にDiscordへ途中経過を伝える。
 - 一時的な失敗（利用上限・通信断・タイムアウト）ではスレッドIDを捨てない。
   「スレッドが見つからない」と読み取れたときだけ新規会話で再試行する。
-- codex 実行体はこのPCでは npm グローバル版
-  （`/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/codex`）。ChatGPT.app 同梱版ではない。
+- codex実行体と作業場所は、各Macの `.env` にある `CODEX_BIN` と `CODEX_CWD` で指定する。
+- 自動起動設定は `.plist.template` から各Mac用に生成し、実ファイルはGitへ含めない。
 - 本番反映は `com.hisho.codex-discord-bot` LaunchAgentの再起動後に `bot.log` で確認する。
