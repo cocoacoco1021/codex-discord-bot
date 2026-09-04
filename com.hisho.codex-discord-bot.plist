@@ -3,23 +3,23 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.cocoa-m3.codex-discord-bot</string>
+    <string>com.hisho.codex-discord-bot</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/cocoa-m3/.nvm/versions/node/v22.22.1/bin/node</string>
-        <string>/Users/cocoa-m3/codex-discord-bot/bot.js</string>
+        <string>/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/node</string>
+        <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.js</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/cocoa-m3/codex-discord-bot</string>
+    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Users/cocoa-m3/.nvm/versions/node/v22.22.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/Users/nisijimk/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>HOME</key>
-        <string>/Users/cocoa-m3</string>
+        <string>/Users/nisijimk</string>
     </dict>
 
     <!-- ログイン時に自動起動する -->
@@ -36,8 +36,8 @@
 
     <!-- 標準出力・エラーとも同じログファイルにまとめる -->
     <key>StandardOutPath</key>
-    <string>/Users/cocoa-m3/codex-discord-bot/bot.log</string>
+    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/cocoa-m3/codex-discord-bot/bot.log</string>
+    <string>/Users/nisijimk/discord-bot-air/codex-discord-bot/bot.log</string>
 </dict>
 </plist>

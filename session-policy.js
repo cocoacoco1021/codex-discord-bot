@@ -111,3 +111,19 @@ export function buildPromptWithHandoff(prompt, handoffSummary) {
     `持ち主の現在の依頼:\n${prompt}`
   );
 }
+
+/**
+ * 役割: なぜ自動更新が走るのかを、持ち主向けの一言にする。
+ * 入力: セッション状態とポリシー。出力: 説明文。
+ */
+export function describeRotationReason(sessionState, policy) {
+  if (sessionState.requestCount >= policy.maxRequests) {
+    return `ご依頼が${sessionState.requestCount}件になりました`;
+  }
+  if (sessionState.contextTokens >= policy.maxContextTokens) {
+    return `会話が約${sessionState.contextTokens.toLocaleString(
+      "ja-JP",
+    )}トークンまで育ちました`;
+  }
+  return "前回やり残したセッションの更新があります";
+}

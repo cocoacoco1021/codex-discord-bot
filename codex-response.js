@@ -31,13 +31,18 @@ export function estimateContextTokens(stdout) {
   return maxTokens;
 }
 
+// 「そのスレッドはもう無い」と読み取れる文言だけを対象にする。
+// 通信断・利用上限・タイムアウトで会話の記憶を捨てないため、ここは広げない。
+const MISSING_THREAD_PATTERN =
+  /(?:session|thread|conversation)[^\n]{0,40}(?:not found|does not exist|no longer|expired|invalid)|(?:not found|does not exist|expired)[^\n]{0,40}(?:session|thread|conversation)/i;
+
 /**
  * 役割: 新規会話で一度だけ再試行すべきセッション不整合かを判定する。
  * 入力: codex実行が送出したエラー。
- * 出力: セッションを破棄して再試行する場合true。
- * 実装メモ: codexは期限切れ・存在しないスレッドを明確に分類しないため、
- *           スレッド継続中の失敗はすべて一度だけ新規で再試行する（従来のbot.jsと同じ）。
+ * 出力: スレッドを破棄して再試行する場合true。
+ * 実装メモ: 一時的な失敗（通信・利用上限・タイムアウト）では会話IDを捨てない。
+ *           スレッドそのものが見つからない場合だけ、新しい会話を始め直す。
  */
-export function shouldRetryWithoutSession() {
-  return true;
+export function shouldRetryWithoutSession(error) {
+  return MISSING_THREAD_PATTERN.test(String(error?.message || error || ""));
 }

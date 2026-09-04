@@ -1,5 +1,7 @@
+node_modules/
 .env
 paired.json
 conversation.json
-node_modules/
+conversation.json.tmp
+handoffs/
 *.log

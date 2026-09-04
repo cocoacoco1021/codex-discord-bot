@@ -33,6 +33,26 @@ test("トークン情報が無ければ文脈量を0に縮退させる", () => {
   assert.equal(estimateContextTokens('{"type":"item.completed"}'), 0);
 });
 
-test("スレッド継続中の失敗は一度だけ新規で再試行する", () => {
-  assert.equal(shouldRetryWithoutSession(new Error("何らかの失敗")), true);
+test("スレッドが見つからない場合だけ新規で再試行する", () => {
+  assert.equal(shouldRetryWithoutSession(new Error("thread not found")), true);
+  assert.equal(
+    shouldRetryWithoutSession(new Error("conversation does not exist")),
+    true,
+  );
+  assert.equal(shouldRetryWithoutSession(new Error("Session expired")), true);
+});
+
+test("一時的な失敗では会話の記憶を捨てない", () => {
+  // 利用上限・通信断・タイムアウトで新しい会話を始めてしまうと文脈が消える
+  assert.equal(
+    shouldRetryWithoutSession(new Error("weekly usage limit reached")),
+    false,
+  );
+  assert.equal(shouldRetryWithoutSession(new Error("fetch failed")), false);
+  assert.equal(
+    shouldRetryWithoutSession(
+      new Error("タイムアウト(3600000ms)により中断しました"),
+    ),
+    false,
+  );
 });

@@ -1,23 +1,28 @@
-import {
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+// Discord添付画像の取り込み。
+// 役割: 持ち主が送った画像だけを、容量・形式・取得先を検証したうえで一時保存する。
+// 方針: 拡張子やContent-Typeを信用しない。Discord公式CDN以外へは一切アクセスしない。
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
 const DEFAULT_MAX_IMAGE_COUNT = 4;
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
+
 const DISCORD_CDN_HOSTS = new Set([
   "cdn.discordapp.com",
   "media.discordapp.net",
 ]);
-const IMAGE_EXTENSIONS = new Map([
-  ["image/jpeg", ".jpg"],
-  ["image/jpg", ".jpg"],
-  ["image/png", ".png"],
-  ["image/webp", ".webp"],
+// Discordの添付ファイルはこのパス配下にしか置かれない。他は取りに行かない。
+const DISCORD_ATTACHMENT_PATHS = ["/attachments/", "/ephemeral-attachments/"];
+
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
 ]);
 
 export class ImageAttachmentError extends Error {
@@ -67,52 +72,84 @@ export function loadImageSettings(environment) {
   };
 }
 
-/**
- * 役割: Discord添付URLが公式CDNを指していることを確認する。
- * 入力: Discordから受け取った添付URL。
- * 出力: 検証済みのURL文字列。
- */
-function validateDiscordAttachmentUrl(attachmentUrl) {
-  try {
-    const parsedUrl = new URL(attachmentUrl);
-    if (parsedUrl.protocol !== "https:" || !DISCORD_CDN_HOSTS.has(parsedUrl.hostname)) {
-      throw new Error("Discord公式CDN以外のURLです");
-    }
-    return parsedUrl.href;
-  } catch (error) {
-    throw new ImageAttachmentError("添付画像のURLを安全に確認できません", error);
-  }
+function normalizedContentType(value) {
+  return value?.split(";", 1)[0]?.trim().toLowerCase() || "";
 }
 
 /**
- * 役割: バイナリ先頭を使って実際の画像形式を判定する。
- * 入力: ダウンロード済みファイルのBuffer。
- * 出力: MIMEタイプ。対応画像でなければnull。
+ * 役割: Discordの表示情報上、対応画像として扱う添付かを判定する。
+ * 入力: Discordの添付情報。出力: 画像として扱うならtrue。
+ * 実装メモ: ここは「取り込み対象かどうか」の振り分けだけ。本物かどうかは実データで判定する。
  */
-function detectImageContentType(imageBuffer) {
-  if (
-    imageBuffer.length >= 8 &&
-    imageBuffer.subarray(0, 8).equals(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+export function isSupportedImageAttachment(attachment) {
+  const extension = extname(attachment.name || "").toLowerCase();
+  return (
+    SUPPORTED_IMAGE_EXTENSIONS.has(extension) ||
+    SUPPORTED_IMAGE_CONTENT_TYPES.has(
+      normalizedContentType(attachment.contentType),
     )
-  ) {
-    return "image/png";
+  );
+}
+
+/**
+ * 役割: Discord公式の添付CDN URLだけを許可する（任意URL取得による事故を防ぐ）。
+ * 入力: 検証したいURL文字列。出力: 許可できるならtrue。
+ */
+export function isAllowedDiscordCdnUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      (!url.port || url.port === "443") &&
+      DISCORD_CDN_HOSTS.has(url.hostname) &&
+      DISCORD_ATTACHMENT_PATHS.some((prefix) => url.pathname.startsWith(prefix))
+    );
+  } catch {
+    return false;
   }
+}
+
+function hasBytes(data, offset, bytes) {
+  if (data.length < offset + bytes.length) return false;
+  return bytes.every((byte, index) => data[offset + index] === byte);
+}
+
+/**
+ * 役割: ファイル先頭の構造から実形式を判定する（拡張子・Content-Typeは信用しない）。
+ * 入力: ダウンロード済みのBuffer。
+ * 出力: 形式と拡張子。対応画像でなければnull。
+ * 実装メモ: 戻り値の拡張子を一時ファイル名に使うため、偽装された拡張子は引き継がない。
+ */
+export function detectImageFormat(data) {
   if (
-    imageBuffer.length >= 3 &&
-    imageBuffer[0] === 0xff &&
-    imageBuffer[1] === 0xd8 &&
-    imageBuffer[2] === 0xff
+    data.length >= 24 &&
+    hasBytes(data, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) &&
+    data.readUInt32BE(8) === 13 &&
+    data.subarray(12, 16).toString("ascii") === "IHDR"
   ) {
-    return "image/jpeg";
+    return { contentType: "image/png", extension: ".png" };
   }
+
   if (
-    imageBuffer.length >= 12 &&
-    imageBuffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-    imageBuffer.subarray(8, 12).toString("ascii") === "WEBP"
+    data.length >= 4 &&
+    hasBytes(data, 0, [0xff, 0xd8, 0xff]) &&
+    data[3] !== 0x00 &&
+    data[3] !== 0xff
   ) {
-    return "image/webp";
+    return { contentType: "image/jpeg", extension: ".jpg" };
   }
+
+  if (
+    data.length >= 16 &&
+    data.subarray(0, 4).toString("ascii") === "RIFF" &&
+    data.subarray(8, 12).toString("ascii") === "WEBP" &&
+    ["VP8 ", "VP8L", "VP8X"].includes(data.subarray(12, 16).toString("ascii"))
+  ) {
+    return { contentType: "image/webp", extension: ".webp" };
+  }
+
   return null;
 }
 
@@ -132,6 +169,37 @@ export function cleanupDownloadedImages(directoryPath) {
 }
 
 /**
+ * 役割: 本文を全部メモリに載せる前に、読みながら容量上限で打ち切る。
+ * 入力: fetchのレスポンスと上限バイト数。出力: 受信済みBuffer。
+ */
+async function readResponseWithLimit(response, maxBytes) {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new ImageAttachmentError(
+      "画像データを読み取れませんでした。もう一度添付してください。",
+    );
+  }
+
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new ImageAttachmentError("添付画像が容量上限を超えています");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
+
+/**
  * 役割: Discord添付画像を検証し、安全な一時ファイルへ保存する。
  * 入力: 添付情報の配列、画像設定、テスト差し替え可能なfetch関数。
  * 出力: 画像パス配列と一時ディレクトリのパス。
@@ -139,7 +207,7 @@ export function cleanupDownloadedImages(directoryPath) {
 export async function downloadDiscordImages(
   attachments,
   imageSettings,
-  fetchImage = fetch,
+  fetchImage = globalThis.fetch,
 ) {
   if (attachments.length === 0) {
     return { directoryPath: null, imagePaths: [] };
@@ -149,60 +217,73 @@ export async function downloadDiscordImages(
       `画像は1回につき${imageSettings.maxCount}枚までです`,
     );
   }
+  if (typeof fetchImage !== "function") {
+    throw new ImageAttachmentError(
+      "このNode.jsでは画像を取得できません。Node.js 18以降が必要です。",
+    );
+  }
 
-  const validatedAttachments = attachments.map((attachment) => {
-    const declaredContentType = attachment.contentType?.toLowerCase();
-    const extension = IMAGE_EXTENSIONS.get(declaredContentType);
-    if (!extension) {
+  // 取りに行く前に、URLと申告サイズをまとめて検査する。
+  for (const attachment of attachments) {
+    if (!isSupportedImageAttachment(attachment)) {
+      throw new ImageAttachmentError("対応画像はPNG・JPEG・WebPです");
+    }
+    if (!isAllowedDiscordCdnUrl(attachment.url)) {
       throw new ImageAttachmentError(
-        "対応画像はPNG・JPEG・WebPです",
+        "Discord公式CDN以外の画像URLは受け付けられません",
       );
     }
-    if (attachment.size > imageSettings.maxBytes) {
+    if (Number(attachment.size) > imageSettings.maxBytes) {
       throw new ImageAttachmentError(
         `画像1枚の上限は${imageSettings.maxBytes}バイトです`,
       );
     }
-    return {
-      declaredContentType:
-        declaredContentType === "image/jpg" ? "image/jpeg" : declaredContentType,
-      extension,
-      url: validateDiscordAttachmentUrl(attachment.url),
-    };
-  });
+  }
 
   const directoryPath = mkdtempSync(join(tmpdir(), "discord-bot-images-"));
   try {
     const imagePaths = [];
-    for (const [imageIndex, attachment] of validatedAttachments.entries()) {
-      const response = await fetchImage(attachment.url, {
-        signal: AbortSignal.timeout(imageSettings.downloadTimeoutMs),
-      });
-      if (!response.ok) {
+    for (const [imageIndex, attachment] of attachments.entries()) {
+      let response;
+      try {
+        // リダイレクト先へは追従しない。取得後のURLも念のため再検査する。
+        response = await fetchImage(attachment.url, {
+          redirect: "error",
+          signal: AbortSignal.timeout(imageSettings.downloadTimeoutMs),
+        });
+      } catch (error) {
         throw new ImageAttachmentError(
-          `添付画像を取得できませんでした（HTTP ${response.status}）`,
+          "画像をDiscordから取得できませんでした。もう一度添付してください。",
+          error,
+        );
+      }
+      if (
+        !response.ok ||
+        !isAllowedDiscordCdnUrl(response.url || attachment.url)
+      ) {
+        throw new ImageAttachmentError(
+          "画像をDiscordから取得できませんでした。もう一度添付してください。",
         );
       }
 
-      const contentLength = Number(response.headers.get("content-length"));
-      if (Number.isFinite(contentLength) && contentLength > imageSettings.maxBytes) {
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      if (contentLength > imageSettings.maxBytes) {
         throw new ImageAttachmentError("添付画像が容量上限を超えています");
       }
 
-      const imageBuffer = Buffer.from(await response.arrayBuffer());
-      if (imageBuffer.length > imageSettings.maxBytes) {
-        throw new ImageAttachmentError("添付画像が容量上限を超えています");
-      }
-      const detectedContentType = detectImageContentType(imageBuffer);
-      if (detectedContentType !== attachment.declaredContentType) {
-        throw new ImageAttachmentError("添付ファイルの画像形式を確認できません");
+      const data = await readResponseWithLimit(response, imageSettings.maxBytes);
+      const format = detectImageFormat(data);
+      if (!format) {
+        throw new ImageAttachmentError(
+          "画像の実ファイル形式を確認できませんでした。PNG・JPEG・WebPを送ってください。",
+        );
       }
 
       const imagePath = join(
         directoryPath,
-        `image-${imageIndex + 1}${attachment.extension}`,
+        `image-${imageIndex + 1}${format.extension}`,
       );
-      writeFileSync(imagePath, imageBuffer, { mode: 0o600 });
+      writeFileSync(imagePath, data, { mode: 0o600 });
       imagePaths.push(imagePath);
     }
     return { directoryPath, imagePaths };

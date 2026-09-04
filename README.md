@@ -12,7 +12,7 @@
 ```
 スマホDiscord → Discord(クラウド) → このMacの bot.js → codex exec → 応答 → Discordへ返信
 ```
-- 実行体は **ChatGPT.app 同梱の codex-cli**（`/Applications/ChatGPT.app/Contents/Resources/codex`。PATH未通のためフルパス指定）
+- 実行体は **npm グローバル版 codex**（`/Users/nisijimk/.nvm/versions/node/v22.22.0/bin/codex`。このPCに ChatGPT.app は無い）
 - 1手目: `codex -C <CWD> exec --json --dangerously-bypass-approvals-and-sandbox -o <tmp> "<歯止め>+<本文>"`
 - 2手目以降: `codex -C <CWD> exec resume <thread_id> …`（`thread.started` イベントから拾ったIDで文脈継続）
 - 会話IDは `conversation.json` に保存し、BotやMacの再起動後も同じ会話を継続
@@ -28,18 +28,20 @@
 | `codex-response.js` | codex出力(stdout)からの会話ID・文脈量の抽出、再試行判定 |
 | `session-policy.js` | 新規会話コマンド、自動更新の閾値、引き継ぎ文面 |
 | `session-lifecycle.js` | 要約作成、新旧セッションの切替、利用量の更新 |
+| `handoff-archive.js` | 引き継ぎ要約を `handoffs/` へ日時つきで残す（上書きしない） |
 | `conversation-store.js` | Codex会話ID・会話数・文脈量・要約の保存と復元。再起動後の会話継続を担当 |
 | `discord-images.js` | Discord添付画像の検証・取得・一時保存・後始末 |
 | `test/codex-command.test.js` | 会話継続コマンドの引数順と初回安全指示のテスト |
 | `test/codex-response.test.js` | 会話ID・文脈量の抽出と再試行判定のテスト |
 | `test/session-policy.test.js` | コマンド判定・閾値・引き継ぎ文面のテスト |
+| `test/handoff-archive.test.js` | 要約の保管・上書き防止のテスト |
 | `test/session-lifecycle.test.js` | 継続・自動更新・手動更新・再試行のテスト |
 | `test/conversation-store.test.js` | 会話状態の保存・復元・旧形式移行・異常系のテスト |
 | `test/discord-images.test.js` | 画像取得・形式検証・容量制限・後始末のテスト |
 | `.env` | 秘密設定（トークン等）。gitignore済み。雛形は `.env.example` |
 | `paired.json` | 持ち主のDiscordユーザーID記憶（初回メッセージで自動登録） |
 | `conversation.json` | Codex会話IDの記憶（自動生成・gitignore済み） |
-| `com.cocoa-m3.codex-discord-bot.plist` | launchd用（ログイン時自動起動・クラッシュ復活） |
+| `com.hisho.codex-discord-bot.plist` | launchd用（ログイン時自動起動・クラッシュ復活） |
 | `bot.log` | 標準出力/エラーのログ |
 
 ## セットアップ
@@ -57,6 +59,10 @@
 - 持ち主の依頼20件、または推定文脈量20万トークンへ到達すると、次の依頼前に自動更新する。
 - 新しい会話へ渡す過去情報は引き継ぎ要約だけ。パスワード・APIキー・Botトークン・画像データを要約へ含めないようcodexへ明示する。
 - 要約作成に失敗した場合は旧会話を維持し、履歴なしで勝手に切り替えない。
+- **自動更新が失敗しても、その依頼は普通に処理する。** 今の会話をそのまま続け、5件先まで再挑戦を控える
+  （20件を超えたあと、何を送ってもエラーになり続ける状態を作らないため）。
+- 自動更新を始める前に「🔄 …引き継ぎ要約を作って、新しいセッションに切り替えます…」とDiscordへ伝える。
+- **作った要約は `handoffs/handoff-<日時>.md` に必ず残す。上書きも削除もしない。**
 - 旧形式の `conversation.json`（会話IDのみ）は、そのまま会話を継続する（強制的な要約更新はしない）。
 
 閾値は `.env` の `CODEX_SESSION_MAX_REQUESTS`、
@@ -79,8 +85,8 @@ npm test
 
 ## 常駐化（自動起動）
 ```bash
-cp com.cocoa-m3.codex-discord-bot.plist ~/Library/LaunchAgents/
-launchctl load -w ~/Library/LaunchAgents/com.cocoa-m3.codex-discord-bot.plist
+cp com.hisho.codex-discord-bot.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist
 ```
 
 ## 運用コマンド
@@ -88,8 +94,8 @@ launchctl load -w ~/Library/LaunchAgents/com.cocoa-m3.codex-discord-bot.plist
 |---|---|
 | 稼働確認 | `launchctl list \| grep codex-discord-bot` |
 | ログ監視 | `tail -f ~/codex-discord-bot/bot.log` |
-| 停止 | `launchctl unload ~/Library/LaunchAgents/com.cocoa-m3.codex-discord-bot.plist` |
-| 起動 | `launchctl load -w ~/Library/LaunchAgents/com.cocoa-m3.codex-discord-bot.plist` |
+| 停止 | `launchctl unload ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist` |
+| 起動 | `launchctl load -w ~/Library/LaunchAgents/com.hisho.codex-discord-bot.plist` |
 | コード反映 | 上の unload→load |
 
 ## 注意

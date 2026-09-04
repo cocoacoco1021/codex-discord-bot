@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -144,5 +151,36 @@ test("負の会話数や文字列の文脈量は保存しない", () => {
         }),
       ConversationStoreError,
     );
+  });
+});
+
+test("保存は一時ファイル経由で行い、途中の残骸を残さない", () => {
+  withTemporaryDirectory((directoryPath) => {
+    const filePath = join(directoryPath, "conversation.json");
+
+    saveConversationId(filePath, CONVERSATION_ID);
+
+    assert.deepEqual(readdirSync(directoryPath), ["conversation.json"]);
+    assert.equal(statSync(filePath).mode & 0o777, 0o600);
+  });
+});
+
+test("保存に失敗しても既存の内容と一時ファイルを壊さない", () => {
+  withTemporaryDirectory((directoryPath) => {
+    const filePath = join(directoryPath, "conversation.json");
+    saveConversationId(filePath, CONVERSATION_ID);
+    const before = readFileSync(filePath, "utf8");
+
+    assert.throws(
+      () =>
+        saveSessionState(filePath, {
+          ...EMPTY_SESSION_STATE,
+          requestCount: -1,
+        }),
+      ConversationStoreError,
+    );
+
+    assert.equal(readFileSync(filePath, "utf8"), before);
+    assert.deepEqual(readdirSync(directoryPath), ["conversation.json"]);
   });
 });
