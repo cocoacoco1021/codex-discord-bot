@@ -14,9 +14,9 @@ import "dotenv/config";
 import { Client, GatewayIntentBits, Partials, Events } from "discord.js";
 
 import { buildCodexArgs } from "./codex-command.js";
+import { readContextTokens } from "./codex-context.js";
 import {
   extractThreadId,
-  estimateContextTokens,
   shouldRetryWithoutSession,
 } from "./codex-response.js";
 import {
@@ -182,7 +182,7 @@ client.once(Events.ClientReady, (c) => {
  * 入力: prompt(文字列), threadId(継続する会話ID。新規ならnull), imagePaths(画像パス配列)
  * 出力: 応答本文・会話ID・推定文脈量（Promise）
  * 実装メモ: 返答本文は --output-last-message のファイルから読む（stdoutのJSONL解析に依存しない）。
- *           会話IDと文脈量は stdout の JSONL から取り出す。
+ *           会話IDは stdout の JSONL から、文脈量はセッションログから取り出す。
  */
 function invokeCodex({ prompt, threadId, imagePaths }) {
   return new Promise((resolve, reject) => {
@@ -235,10 +235,13 @@ function invokeCodex({ prompt, threadId, imagePaths }) {
           /* 後始末失敗は無視 */
         }
       }
+      // resume では thread.started に同じIDが出るが、出なかった場合は今のIDを保つ。
+      const resolvedThreadId = extractThreadId(stdout) ?? threadId ?? null;
       resolve({
-        threadId: extractThreadId(stdout),
+        threadId: resolvedThreadId,
         text: text || "(空の応答)",
-        contextTokens: estimateContextTokens(stdout),
+        // 文脈量はセッションログから読む（stdoutの usage はスレッド累計で使えない）。
+        contextTokens: readContextTokens(resolvedThreadId),
       });
     });
   });

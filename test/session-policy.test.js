@@ -13,7 +13,7 @@ import {
 
 const POLICY = {
   maxRequests: 20,
-  maxContextTokens: 200_000,
+  maxContextTokens: 80_000,
   maxHandoffChars: 3_000,
 };
 
@@ -57,7 +57,7 @@ test("新規会話コマンドだけを通常依頼から分離する", () => {
 test("会話数・容量・旧形式移行のいずれかで更新する", () => {
   const baseState = {
     requestCount: 19,
-    contextTokens: 199_999,
+    contextTokens: 79_999,
     rotationPending: false,
   };
 
@@ -67,7 +67,7 @@ test("会話数・容量・旧形式移行のいずれかで更新する", () =>
     true,
   );
   assert.equal(
-    shouldRotateSession({ ...baseState, contextTokens: 200_000 }, POLICY),
+    shouldRotateSession({ ...baseState, contextTokens: 80_000 }, POLICY),
     true,
   );
   assert.equal(

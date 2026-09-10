@@ -1,6 +1,7 @@
 const DEFAULT_MAX_REQUESTS = 20;
-// codexの文脈窓は約25万トークンと広いため、余裕を残す位置で自動更新する。
-const DEFAULT_MAX_CONTEXT_TOKENS = 200_000;
+// claude版と同じ位置で自動更新する。codexの文脈窓（約25万）に対しては早めだが、
+// codex自身の自動圧縮が始まる前に要約で引き継ぐほうが、消費トークンも文脈の質も安定する。
+const DEFAULT_MAX_CONTEXT_TOKENS = 80_000;
 const DEFAULT_MAX_HANDOFF_CHARS = 3_000;
 
 export class SessionPolicyError extends Error {

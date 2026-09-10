@@ -25,14 +25,16 @@
 |---|---|
 | `bot.js` | 本体。Discord受信 → codex実行 → 返信。ペアリング・許可ユーザー判定・直列キュー・分割送信 |
 | `codex-command.js` | 現行Codex CLIに合う新規・継続コマンドの組み立て |
-| `codex-response.js` | codex出力(stdout)からの会話ID・文脈量の抽出、再試行判定 |
+| `codex-response.js` | codex出力(stdout)からの会話IDの抽出、再試行判定 |
+| `codex-context.js` | 現在の文脈量をcodexのセッションログ(`last_token_usage`)から読む |
 | `session-policy.js` | 新規会話コマンド、自動更新の閾値、引き継ぎ文面 |
 | `session-lifecycle.js` | 要約作成、新旧セッションの切替、利用量の更新 |
 | `handoff-archive.js` | 引き継ぎ要約を `handoffs/` へ日時つきで残す（上書きしない） |
 | `conversation-store.js` | Codex会話ID・会話数・文脈量・要約の保存と復元。再起動後の会話継続を担当 |
 | `discord-images.js` | Discord添付画像の検証・取得・一時保存・後始末 |
 | `test/codex-command.test.js` | 会話継続コマンドの引数順と初回安全指示のテスト |
-| `test/codex-response.test.js` | 会話ID・文脈量の抽出と再試行判定のテスト |
+| `test/codex-response.test.js` | 会話IDの抽出と再試行判定のテスト |
+| `test/codex-context.test.js` | セッションログからの文脈量の読み取りテスト |
 | `test/session-policy.test.js` | コマンド判定・閾値・引き継ぎ文面のテスト |
 | `test/handoff-archive.test.js` | 要約の保管・上書き防止のテスト |
 | `test/session-lifecycle.test.js` | 継続・自動更新・手動更新・再試行のテスト |
@@ -56,7 +58,7 @@
 
 - Discordで `!new` と送ると、現在の会話を3,000文字以内へ要約し、新しい会話へ切り替える。
 - `!new fresh` は引き継ぎなしで切り替える。旧会話ログ自体は削除しない。
-- 持ち主の依頼20件、または推定文脈量20万トークンへ到達すると、次の依頼前に自動更新する。
+- 持ち主の依頼20件、または文脈量8万トークンへ到達すると、次の依頼前に自動更新する（claude版と同じ閾値）。
 - 新しい会話へ渡す過去情報は引き継ぎ要約だけ。パスワード・APIキー・Botトークン・画像データを要約へ含めないようcodexへ明示する。
 - 要約作成に失敗した場合は旧会話を維持し、履歴なしで勝手に切り替えない。
 - **自動更新が失敗しても、その依頼は普通に処理する。** 今の会話をそのまま続け、5件先まで再挑戦を控える
@@ -67,7 +69,11 @@
 
 閾値は `.env` の `CODEX_SESSION_MAX_REQUESTS`、
 `CODEX_SESSION_MAX_CONTEXT_TOKENS`、`CODEX_HANDOFF_MAX_CHARS` で変更できます。
-文脈量による自動更新は、codexの出力からトークン量を取得できた場合のみ働きます（取得できないときは依頼件数のみで判定）。
+文脈量は codex のセッションログ（`~/.codex/sessions/**/rollout-*.jsonl`）の
+`token_count` イベントの `last_token_usage.input_tokens` から読みます。
+`codex exec --json` が流す `turn.completed` の `usage` はスレッドの累計値で、
+resume をまたいで加算され続けるため文脈量には使えません（2026-09-10に実測して確認）。
+セッションログを読めなかったときは 0 に縮退し、依頼件数だけで判定します（`bot.log` に警告が1回出ます）。
 
 ## 画像添付
 

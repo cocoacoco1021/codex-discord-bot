@@ -1,9 +1,5 @@
 const THREAD_ID_PATTERN =
   /"thread_id"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/i;
-// codexは各ターンの token_count イベントで last_token_usage を出す。
-// 現在の文脈量の目安として、この input_tokens（キャッシュ込みの入力量）を使う。
-const LAST_TOKEN_USAGE_INPUT_PATTERN =
-  /"last_token_usage"\s*:\s*\{[^}]*?"input_tokens"\s*:\s*(\d+)/gi;
 
 /**
  * 役割: codexのJSONL出力（stdout）から会話スレッドIDを取り出す。
@@ -15,21 +11,10 @@ export function extractThreadId(stdout) {
   return match ? match[1] : null;
 }
 
-/**
- * 役割: codexの利用量から現在の文脈量を保守的に見積もる。
- * 入力: codex exec --json の標準出力。
- * 出力: 非負整数の推定トークン数。取得できなければ0。
- * 実装メモ: token_countの形式は環境差があるため、取れなければ0に縮退させ、
- *           依頼件数による自動更新のみに任せる（claude版のusage欠落時と同じ挙動）。
- */
-export function estimateContextTokens(stdout) {
-  let maxTokens = 0;
-  for (const match of stdout.matchAll(LAST_TOKEN_USAGE_INPUT_PATTERN)) {
-    const tokens = Number(match[1]);
-    if (Number.isFinite(tokens) && tokens > maxTokens) maxTokens = tokens;
-  }
-  return maxTokens;
-}
+// 文脈量（いまの会話が抱えているトークン数）は stdout からは分からない。
+// codex exec --json の turn.completed の usage はスレッドの累計値で、
+// resume をまたいで加算され続けるため文脈量として使えない（2026-09-10に実測）。
+// 現在の文脈量は codex-context.js がセッションログの last_token_usage から読む。
 
 // 「そのスレッドはもう無い」と読み取れる文言だけを対象にする。
 // 通信断・利用上限・タイムアウトで会話の記憶を捨てないため、ここは広げない。
