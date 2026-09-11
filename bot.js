@@ -16,6 +16,7 @@ import { Client, GatewayIntentBits, Partials, Events } from "discord.js";
 import { buildCodexArgs } from "./codex-command.js";
 import { readContextTokens } from "./codex-context.js";
 import {
+  extractCodexError,
   extractThreadId,
   shouldRetryWithoutSession,
 } from "./codex-response.js";
@@ -218,9 +219,14 @@ function invokeCodex({ prompt, threadId, imagePaths }) {
     child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        return reject(
-          new Error(stderr.trim() || `codex が異常終了しました (code ${code})`),
-        );
+        // 真因は stdout の JSONL(error / turn.failed)に載る。
+        // stderr の "Reading additional input from stdin..." だけを見ると誤診するため、
+        // stdout を最優先し、無ければ stderr、それも無ければ終了コードを返す。
+        const reason =
+          extractCodexError(stdout) ||
+          stderr.trim() ||
+          `codex が異常終了しました (code ${code})`;
+        return reject(new Error(reason));
       }
       // 最終メッセージはファイルから取得（無ければ空扱い）
       let text = "";

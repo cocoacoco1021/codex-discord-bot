@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  extractCodexError,
   extractThreadId,
   shouldRetryWithoutSession,
 } from "../codex-response.js";
@@ -31,6 +32,42 @@ test("スレッドが見つからない場合だけ新規で再試行する", ()
     true,
   );
   assert.equal(shouldRetryWithoutSession(new Error("Session expired")), true);
+});
+
+test("turn.failed の真因メッセージを stdout から取り出す", () => {
+  const stdout = [
+    `{"type":"thread.started","thread_id":"${THREAD_ID}"}`,
+    '{"type":"turn.started"}',
+    '{"type":"turn.failed","error":{"message":"You have hit your usage limit."}}',
+  ].join("\n");
+  assert.equal(extractCodexError(stdout), "You have hit your usage limit.");
+});
+
+test("error 型イベントの message を取り出す", () => {
+  const stdout = '{"type":"error","message":"stream error: connection reset"}';
+  assert.equal(extractCodexError(stdout), "stream error: connection reset");
+});
+
+test("エラーイベントが無ければnullにする", () => {
+  // 成功時の JSONL からは真因を作らない（stderr 側の判断へ委ねる）
+  assert.equal(extractCodexError(STDOUT_WITH_EVENTS), null);
+});
+
+test("エラーが複数あれば最後（最新）の真因を優先する", () => {
+  const stdout = [
+    '{"type":"error","message":"一時的な警告"}',
+    '{"type":"turn.failed","error":{"message":"本当の理由"}}',
+  ].join("\n");
+  assert.equal(extractCodexError(stdout), "本当の理由");
+});
+
+test("JSONでない行が混ざっても壊れない", () => {
+  const stdout = [
+    "ノイズ行(JSONではない)",
+    '{"type":"turn.failed","error":{"message":"利用上限に達しました"}}',
+    "",
+  ].join("\n");
+  assert.equal(extractCodexError(stdout), "利用上限に達しました");
 });
 
 test("一時的な失敗では会話の記憶を捨てない", () => {
